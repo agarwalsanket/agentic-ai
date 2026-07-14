@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
     # Turn 3: ask the stock price
     input_3 = {"messages": [("user", "Tell Micron stock price")]}
-    for event in app.stream(input_2, config):
+    for event in app.stream(input_3, config):
         print(event)
 
     # Turn 4: Change context and ask yoiur name
