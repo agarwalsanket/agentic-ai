@@ -36,7 +36,9 @@ workflow.add_conditional_edges(
 workflow.add_edge("search_node", "chatbot")
 
 # Compile the graph WITH the checkpointer
-app = workflow.compile(checkpointer=memory)
+app = workflow.compile(checkpointer=memory
+                       , interrupt_before=["search_node"]
+                       )
 
 if __name__ == "__main__":
     # The thread_id is the unique key for this conversation
@@ -45,19 +47,27 @@ if __name__ == "__main__":
     # Turn 1, tell AI who I am
     input_1 = {"messages": [("user", "My name is Sanket.")]}
     for event in app.stream(input_1, config):
+        print("step: "+str(1))
         print(event)
 
     # Turn 2: different context, ask stock price
-    input_2 = {"messages": [("user", "Current stock price of Micron?")]}
+    input_2 = {"messages": [("user", "Current stock price of Apple?")]}
     for event in app.stream(input_2, config):
+        print("step: " + str(2))
         print(event)
 
-    # Turn 3: ask the stock price
-    input_3 = {"messages": [("user", "Tell Micron stock price")]}
-    for event in app.stream(input_3, config):
-        print(event)
+    # In the previous step Agent will try to search the web
+    # We have applied the HITL pattrn by applying an interupt before the serach node
+    # next we are taking user input to search or not
 
-    # Turn 4: Change context and ask yoiur name
-    input_4 = {"messages": [("user", "what's my name")]}
-    for event in app.stream(input_4, config):
-        print(event)
+    human_input = input("AI wants to search the web, do you allow?yes/no") #
+    if human_input == "yes":
+        # RESUME: Now passing 'None' to continue.
+        for event in app.stream(None, config):
+            print(event)
+    else:
+        new_message = [("assistant", "I am not allowed to search for stock prices.")]
+        app.update_state(config, {"messages": new_message})
+        # The router will re-read the state, see no 'SEARCH:' keyword, and go to the next input
+        for event in app.stream(None, config):
+            print(event)
