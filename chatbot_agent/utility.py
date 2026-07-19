@@ -1,4 +1,5 @@
 
+from langchain_core.messages import ToolMessage
 
 def router(state):
     """
@@ -21,22 +22,44 @@ def handle_human_gate(app, config):
     if not state.next:
         return
 
-    if "search_node" in state.next:
+    if "tools" in state.next:
+        # Get the tool calls so we can see what the AI wants to do
+        last_message = state.values["messages"][-1]
+        tool_call = last_message.tool_calls[0]
+
         print("\n--- 🛑 AGENT IS PAUSED: Human Approval Required ---")
-        user_choice = input("The AI wants to search the web. Allow? (yes/no/edit): ").lower()
+        user_choice = input("The AI wants to use a tool. Allow? (yes/no/edit): ").lower()
         if user_choice == "yes":
             # Resume by passing None (signals approval)
             for event in app.stream(None, config):
                 print(event)
         elif user_choice == "edit":
-            new_query = input("Enter a better search query: \n")
+            new_query = input("Enter a new request: \n")
+
             # Update the state with the edited query before resuming
-            app.update_state(config, {"messages": [("user", f"SEARCH: {new_query}")]})
+            tool_msg = ToolMessage(
+                content=new_query,
+                tool_call_id=tool_call["id"]
+            )
+
+            # Update state AS IF the tools node just ran
+            app.update_state(config, {"messages": [tool_msg]}, as_node="tools")
+
+            # Now resume; it will go back to the agent to explain the denial
             for event in app.stream(None, config):
                 print(event)
         else:
-            # Veto: Overwrite the message to stop the search trigger
-            print("--- ❌ Search Vetoed by Human ---")
-            app.update_state(config, {"messages": [("assistant", "Human denied search access.")]})
+            print("--- ❌ Search Vetoed ---")
+
+            # Create a ToolMessage that tells the AI the human said no
+            tool_msg = ToolMessage(
+                content="Action denied by human supervisor.",
+                tool_call_id=tool_call["id"]
+            )
+
+            # Update state AS IF the tools node just ran
+            app.update_state(config, {"messages": [tool_msg]}, as_node="tools")
+
+            # Now resume; it will go back to the agent to explain the denial
             for event in app.stream(None, config):
                 print(event)

@@ -1,37 +1,42 @@
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import StateGraph, START
 
-from chatbot_agent.nodes.search import search_node
+from chatbot_agent.tools.calculator import calculate
+from chatbot_agent.tools.search import web_search
 from chatbot_agent.state import AgentState
 from chatbot_agent.nodes.chatbot import chatbot_node
 from langgraph.checkpoint.sqlite import SqliteSaver
-from utility import router, handle_human_gate
+from utility import handle_human_gate
 import sqlite3
+from langgraph.prebuilt import ToolNode, tools_condition
 
 
 # Use an in-memory DB for local testing
 db = sqlite3.connect(":memory:", check_same_thread=False)
 memory = SqliteSaver(db)
 
+
+# existing tools
+tools = [web_search, calculate]
+tool_node = ToolNode(tools)
+
 # Wire the graph
 workflow = StateGraph(AgentState)
-workflow.add_node("chatbot", chatbot_node)
-workflow.add_node("search_node", search_node)
-workflow.add_edge(START, "chatbot")
+workflow.add_node("agent", chatbot_node)
+workflow.add_node("tools", tool_node)
+
+workflow.add_edge(START, "agent")
 
 workflow.add_conditional_edges(
-    "chatbot",
-    router,
-    {
-        "search_node": "search_node",
-        "__end__": "__end__"
-    }
+    "agent",
+    tools_condition
 )
 
-workflow.add_edge("search_node", "chatbot")
+# Loop back to agent for synthesis
+workflow.add_edge("tools", "agent")
 
 # Compile the graph WITH the checkpointer
 app = workflow.compile(checkpointer=memory
-                       , interrupt_before=["search_node"]
+                       , interrupt_before=["tools"]
                        )
 
 if __name__ == "__main__":
@@ -46,7 +51,7 @@ if __name__ == "__main__":
         if user_query == "EXIT":
             break
 
-        user_input = {"messages": [("user", user_query)], "step_count": 1}
+        user_input = {"messages": [("user", user_query)]}
         for event in app.stream(user_input, config):
             print(event)
 

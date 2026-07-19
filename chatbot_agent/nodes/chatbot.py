@@ -1,23 +1,26 @@
 from chatbot_agent.state import AgentState
-# from langchain_openai import ChatOpenAI
+from chatbot_agent.tools.calculator import calculate
+from chatbot_agent.tools.search import web_search
 from langchain_ollama import ChatOllama
 
 
 # model = ChatOpenAI(model="gpt-4o")
-model = ChatOllama(model="llama3")
+model = ChatOllama(model="llama3.1")
 
 def chatbot_node(state: AgentState):
     # The System Prompt is the 'Brain' of the router
     system_prompt = (
-        "You are a helpful assistant. If the user asks a question about current events, "
-        "real-time data, or something you don't know, you MUST respond with "
-        "exactly: 'SEARCH: [query]' where [query] is what you want to look up. "
-        "If you have the answer, just reply normally."
+        "You are a helpful assistant. Use the provided tools to look up "
+        "real-time data or perform calculations when necessary."
     )
 
     # Combine the system prompt with the conversation history
-    print("This is step number: "+str(state["step_count"]))
     messages = [("system", system_prompt)] + state["messages"]
-    response = model.invoke(messages)
-    return {"messages": [response], "step_count": 1}
+
+    # binding existing tools
+    tools = [web_search, calculate]
+    llm_with_tools = model.bind_tools(tools)
+
+    response = llm_with_tools.invoke(messages)
+    return {"messages": [response]}
 
