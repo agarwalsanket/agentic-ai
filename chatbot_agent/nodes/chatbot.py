@@ -16,7 +16,8 @@ def chatbot_node(state: AgentState):
     )
 
     # Combine the system prompt with the conversation history
+    print("This is step number: "+str(state["step_count"]))
     messages = [("system", system_prompt)] + state["messages"]
     response = model.invoke(messages)
-    return {"messages": [response]}
+    return {"messages": [response], "step_count": 1}
 
