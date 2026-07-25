@@ -43,8 +43,6 @@ if __name__ == "__main__":
     # The thread_id is the unique key for this conversation
     config = {"configurable": {"thread_id": "sagroc"}}
 
-    session_on = True
-
     while True:
         user_query = input("\n--- Ask anything? If you want to stop the session enter EXIT. \n")
 

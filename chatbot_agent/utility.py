@@ -1,5 +1,6 @@
 
 from langchain_core.messages import ToolMessage
+from langchain_core.messages import AIMessage
 
 def router(state):
     """
@@ -36,16 +37,32 @@ def handle_human_gate(app, config):
         elif user_choice == "edit":
             new_query = input("Enter a new request: \n")
 
+            edited_tool_call = last_message.tool_calls[0].copy()
+            old_query = edited_tool_call["args"]["query"]
+            edited_tool_call["args"]["query"] = new_query
+
+            # Inject an explicit Audit Trail into the content string
+            # This ensures anyone looking at Langfuse/Opik immediately sees the human intervention
+            audit_logged_content = (
+                f"{last_message.content}\n\n"
+                f"[🔧 SYSTEM NOTE: Tool argument 'query' was manually intercepted and edited "
+                f"by a human supervisor from '{old_query}' to '{new_query}']."
+            )
+
             # Update the state with the edited query before resuming
-            tool_msg = ToolMessage(
-                content=new_query,
-                tool_call_id=tool_call["id"]
+            updated_ai_msg = AIMessage(
+                content=audit_logged_content,
+                tool_calls=[edited_tool_call],
+                id=last_message.id  # Matching the ID triggers an overwrite instead of an append
             )
 
             # Update state AS IF the tools node just ran
-            app.update_state(config, {"messages": [tool_msg]}, as_node="tools")
+            app.update_state(config, {"messages": [updated_ai_msg]})
 
-            # Now resume; it will go back to the agent to explain the denial
+            print(f"--- 🔄 Tool arguments updated to: '{new_query}'. Resuming tool node... ---")
+
+            # Resume streaming. The graph will now wake up, execute the 'tools' node,
+            # and read your modified query parameter!
             for event in app.stream(None, config):
                 print(event)
         else:
