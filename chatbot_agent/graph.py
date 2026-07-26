@@ -1,5 +1,5 @@
 from langgraph.graph import StateGraph, START
-
+from dotenv import load_dotenv
 from chatbot_agent.tools.calculator import calculate
 from chatbot_agent.tools.search import web_search
 from chatbot_agent.state import AgentState
@@ -9,6 +9,14 @@ from utility import handle_human_gate
 import sqlite3
 from langgraph.prebuilt import ToolNode, tools_condition
 
+
+# Load secret environment keys
+load_dotenv()
+
+# instantiating preferred tracing container
+#  Langfuse Trace Aggregator Setup
+from langfuse.langchain import CallbackHandler
+trace_callback_handler = CallbackHandler()
 
 # Use an in-memory DB for local testing
 db = sqlite3.connect(":memory:", check_same_thread=False)
@@ -41,7 +49,10 @@ app = workflow.compile(checkpointer=memory
 
 if __name__ == "__main__":
     # The thread_id is the unique key for this conversation
-    config = {"configurable": {"thread_id": "sagroc"}}
+    config = {
+            "configurable": {"thread_id": "sagroc"}
+            , "callbacks": [trace_callback_handler]
+        }
 
     while True:
         user_query = input("\n--- Ask anything? If you want to stop the session enter EXIT. \n")
